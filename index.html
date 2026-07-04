@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hirely — Find your next role</title>
+    <meta
+      name="description"
+      content="Hirely is a modern job board to discover, filter and apply to the best remote and on-site tech, design and product roles."
+    />
+    <meta name="theme-color" content="#5B6EF5" />
+
+    <!-- Preconnect + fonts: Space Grotesk (display), Inter (body), IBM Plex Mono (data/utility) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Prevents a flash of the wrong theme before React hydrates -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('hirely-theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = stored ? stored === 'dark' : prefersDark;
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-paper dark:bg-base-dark">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

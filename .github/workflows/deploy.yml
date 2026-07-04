@@ -1,0 +1,104 @@
+name: CI/CD
+
+# Runs on every push and pull request against main, and lets you trigger it
+# manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI: install, lint, type-check, and build on every push/PR. This job alone
+  # gives you fast feedback and blocks merges without needing any secrets.
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Lint, type-check & build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Type-check & build
+        run: npm run build
+
+      - name: Upload production build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # CD: deploy to Vercel, but only for pushes to main and only once the build
+  # job above has succeeded. Requires three repository secrets:
+  #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+  # (see README.md for how to obtain them). If they aren't configured yet,
+  # this job is skipped rather than failing the whole workflow.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Vercel
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Vercel secrets are configured
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Vercel CLI
+        if: steps.check-secrets.outputs.configured == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        if: steps.check-secrets.outputs.configured == 'true'
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build project artifacts
+        if: steps.check-secrets.outputs.configured == 'true'
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        if: steps.check-secrets.outputs.configured == 'true'
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Skip notice
+        if: steps.check-secrets.outputs.configured == 'false'
+        run: echo "Skipping deploy — add VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID as repository secrets to enable it."
